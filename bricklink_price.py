@@ -15,9 +15,9 @@ Example usage:
 For ``SET`` items the script automatically appends the ``-1`` variant suffix when
 it is omitted, matching BrickLink's catalog identifiers.
 
-By default the script requests the average *sold* price, but this can be changed
-with the ``--guide-type`` option. See ``python bricklink_price.py --help`` for
-additional options.
+The script now fetches and prints all four average price combinations: new and
+used items for both the stock and sold price guides. See ``python
+bricklink_price.py --help`` for additional options.
 """
 
 from __future__ import annotations
@@ -56,21 +56,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "item_no",
         help="The item number (e.g. 3001, 75257-1).",
-    )
-    parser.add_argument(
-        "--new-or-used",
-        choices=["N", "U"],
-        default="N",
-        help="Filter by condition: 'N' for new items, 'U' for used items (default: %(default)s).",
-    )
-    parser.add_argument(
-        "--guide-type",
-        choices=["stock", "sold"],
-        default="sold",
-        help=(
-            "Which price guide to use: 'sold' for the sold lot price guide or 'stock' for the "
-            "current stock price guide (default: %(default)s)."
-        ),
     )
     parser.add_argument(
         "--currency-code",
@@ -139,7 +124,13 @@ def _build_oauth1_header(
     )
     return f"OAuth {header_params}"
 
-def fetch_average_price(args: argparse.Namespace) -> float:
+def fetch_average_price(
+    item_type: str,
+    item_no: str,
+    guide_type: str,
+    condition: str,
+    currency_code: str | None,
+) -> float:
     """Call the BrickLink API and return the requested average price.
 
     Raises ``RuntimeError`` if the API response does not contain the expected data.
@@ -165,18 +156,18 @@ def fetch_average_price(args: argparse.Namespace) -> float:
             "Missing BrickLink API credentials: " + ", ".join(missing)
         )
 
-    item_type = args.item_type.upper()
-    item_no = args.item_no
-    if item_type == "SET" and "-" not in item_no:
-        item_no = f"{item_no}-1"
+    normalized_item_type = item_type.upper()
+    normalized_item_no = item_no
+    if normalized_item_type == "SET" and "-" not in normalized_item_no:
+        normalized_item_no = f"{normalized_item_no}-1"
 
-    url = f"{API_BASE_URL}/items/{item_type}/{item_no}/price"
+    url = f"{API_BASE_URL}/items/{normalized_item_type}/{normalized_item_no}/price"
     params: Dict[str, Any] = {
-        "guide_type": args.guide_type,
-        "new_or_used": args.new_or_used,
+        "guide_type": guide_type,
+        "new_or_used": condition,
     }
-    if args.currency_code:
-        params["currency_code"] = args.currency_code
+    if currency_code:
+        params["currency_code"] = currency_code
 
     query_string = urllib.parse.urlencode(sorted(params.items()))
     request_url = f"{url}?{query_string}" if query_string else url
@@ -240,16 +231,34 @@ def fetch_average_price(args: argparse.Namespace) -> float:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
+    combinations = [
+        ("stock", "N"),
+        ("stock", "U"),
+        ("sold", "N"),
+        ("sold", "U"),
+    ]
+
+    prices: Dict[tuple[str, str], float] = {}
     try:
-        avg_price = fetch_average_price(args)
+        for guide_type, condition in combinations:
+            prices[(guide_type, condition)] = fetch_average_price(
+                args.item_type,
+                args.item_no,
+                guide_type,
+                condition,
+                args.currency_code,
+            )
     except Exception as exc:  # pragma: no cover - CLI error handling
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
-    print(
-        f"Average {args.guide_type} price for {args.item_type} {args.item_no} "
-        f"({args.new_or_used}): {avg_price:.2f}"
-    )
+    condition_label = {"N": "New", "U": "Used"}
+    for guide_type in ("stock", "sold"):
+        print(f"Average {guide_type} prices for {args.item_type} {args.item_no}:")
+        for condition in ("N", "U"):
+            price = prices[(guide_type, condition)]
+            print(f"  {condition_label[condition]}: {price:.2f}")
+
     return 0
 
 
