@@ -707,7 +707,9 @@ def render_html(items: Sequence[Mapping[str, Any]]) -> str:
       min-height: 140px;
     }}
     .item-card__image {{
-      max-width: 100%;
+      width: 100%;
+      max-width: 160px;
+      max-height: 140px;
       height: auto;
       object-fit: contain;
     }}
