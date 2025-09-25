@@ -1,4 +1,4 @@
-"""Generate a Tailwind CSS HTML overview for all Firestore items."""
+"""Generate a modern HTML overview for all Firestore items."""
 from __future__ import annotations
 
 import argparse
@@ -43,7 +43,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Liest alle Dokumente aus einer Firestore Collection und erzeugt eine "
-            "Tailwind HTML-\u00dcbersicht inklusive Preisdiagrammen pro Artikel."
+            "moderne HTML-\u00dcbersicht inklusive Preisdiagrammen pro Artikel."
         )
     )
     parser.add_argument(
@@ -273,9 +273,10 @@ def _format_result_summary(key: str, payload: Mapping[str, Any]) -> str:
         summary_fields.append("Keine Kennzahlen verf\u00fcgbar")
 
     return (
-        f"<li class=\"py-1\"><span class=\"font-medium text-slate-700\">"
-        f"{_escape(key.replace('_', ' ').title())}:</span> "
-        f"<span class=\"text-slate-600\">{', '.join(summary_fields)}</span></li>"
+        "<li class=\"summary-item\">"
+        f"<span class=\"summary-key\">{_escape(key.replace('_', ' ').title())}:</span> "
+        f"<span class=\"summary-values\">{', '.join(summary_fields)}</span>"
+        "</li>"
     )
 
 
@@ -289,7 +290,7 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
     labels, datasets = _build_chart_series(results)
     chart_config: Dict[str, Any] | None = None
     chart_placeholder = (
-        f"<p class=\"text-sm text-slate-500\">Keine historischen Preisdaten vorhanden.</p>"
+        "<p class=\"chart-empty\">Keine historischen Preisdaten vorhanden.</p>"
     )
     if labels and datasets:
         element_id = f"chart-{index}"
@@ -299,7 +300,7 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
             "datasets": datasets,
         }
         chart_placeholder = (
-            f"<canvas id=\"{element_id}\" class=\"w-full h-64 rounded-md bg-white\"></canvas>"
+            f"<canvas id=\"{element_id}\" class=\"chart-canvas\"></canvas>"
         )
 
     summary_html = ""
@@ -311,44 +312,50 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
         ]
         if summary_items:
             summary_html = (
-                "<ul class=\"text-sm divide-y divide-slate-100 border border-slate-200 "
-                "rounded-lg bg-slate-50/70 backdrop-blur-sm\">"
+                "<ul class=\"summary-list\">"
                 + "".join(summary_items)
                 + "</ul>"
             )
     if not summary_html:
         summary_html = (
-            "<p class=\"text-sm text-slate-500\">Keine zusammengefassten Preisdaten verf\u00fcgbar.</p>"
+            "<p class=\"summary-empty\">Keine zusammengefassten Preisdaten verf\u00fcgbar.</p>"
         )
 
     info_rows = [
-        f"<div><span class=\"font-medium text-slate-700\">Nummer:</span> {_escape(item_no)}</div>",
-        f"<div><span class=\"font-medium text-slate-700\">Typ:</span> {_escape(item_type)}</div>",
+        "<div class=\"info-row\">"
+        f"<span class=\"info-label\">Nummer:</span><span>{_escape(item_no)}</span>"
+        "</div>",
+        "<div class=\"info-row\">"
+        f"<span class=\"info-label\">Typ:</span><span>{_escape(item_type)}</span>"
+        "</div>",
     ]
     if item_name:
         info_rows.append(
-            f"<div><span class=\"font-medium text-slate-700\">Name:</span> {_escape(item_name)}</div>"
+            "<div class=\"info-row\">"
+            f"<span class=\"info-label\">Name:</span><span>{_escape(item_name)}</span>"
+            "</div>"
         )
     if last_updated:
         info_rows.append(
-            f"<div><span class=\"font-medium text-slate-700\">Zuletzt aktualisiert:</span> {_escape(last_updated)}</div>"
+            "<div class=\"info-row\">"
+            f"<span class=\"info-label\">Zuletzt aktualisiert:</span><span>{_escape(last_updated)}</span>"
+            "</div>"
         )
 
     info_html = (
-        "<div class=\"grid gap-2 text-sm text-slate-600\">" + "".join(info_rows) + "</div>"
+        "<div class=\"info-grid\">" + "".join(info_rows) + "</div>"
     )
 
     section_html = (
-        "<section class=\"bg-white/90 border border-slate-200/70 rounded-2xl shadow-lg p-6 "
-        "flex flex-col gap-6 transition-all duration-200 hover:shadow-xl hover:border-slate-300\">"
-        f"<div class=\"flex flex-col gap-1\">"
-        f"<h2 class=\"text-xl font-semibold text-slate-800\">{_escape(item_no)}"
+        "<section class=\"item-card\">"
+        "<div class=\"item-card__header\">"
+        f"<h2 class=\"item-card__title\">{_escape(item_no)}"
         f"{f' - {_escape(item_name)}' if item_name else ''}</h2>"
-        f"<span class=\"text-sm text-slate-500\">{_escape(item_type)}</span>"
+        f"<span class=\"item-card__subtitle\">{_escape(item_type)}</span>"
         "</div>"
-        "<div class=\"grid gap-6 md:grid-cols-2\">"
-        f"<div class=\"space-y-4\">{info_html}{summary_html}</div>"
-        f"<div class=\"bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-inner\">{chart_placeholder}</div>"
+        "<div class=\"item-card__content\">"
+        f"<div class=\"card-column\">{info_html}{summary_html}</div>"
+        f"<div class=\"chart-container\">{chart_placeholder}</div>"
         "</div>"
         "</section>"
     )
@@ -357,7 +364,7 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
 
 def _render_documentation_notice() -> str:
     return (
-        "<div class=\"max-w-5xl mx-auto my-6 text-sm text-slate-500\">"
+        "<div class=\"notice\">"
         "Die dargestellten Werte basieren auf den in Firestore gespeicherten "
         "Durchschnittspreisen. Die Grafiken stellen gemittelte Einheitspreise pro Monat dar."
         "</div>"
@@ -378,7 +385,7 @@ def render_html(items: Sequence[Mapping[str, Any]]) -> str:
     chart_data_json = charts_json.replace("</", "<\\/")
 
     sections_html = "".join(sections) if sections else (
-        "<p class=\"text-center text-slate-500\">Keine Dokumente in der Collection gefunden.</p>"
+        "<p class=\"empty-message\">Keine Dokumente in der Collection gefunden.</p>"
     )
 
     return f"""<!DOCTYPE html>
@@ -390,20 +397,195 @@ def render_html(items: Sequence[Mapping[str, Any]]) -> str:
   <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">
   <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>
   <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">
-  <link href=\"https://cdn.jsdelivr.net/npm/tailwindcss@3.4.4/dist/tailwind.min.css\" rel=\"stylesheet\">
   <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\" defer></script>
   <style>
-    body {{ font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
+    :root {{
+      color-scheme: light;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }}
+    *, *::before, *::after {{
+      box-sizing: border-box;
+    }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #0f172a;
+      background: linear-gradient(135deg, #f1f5f9 0%, #ffffff 55%, #e2e8f0 100%);
+    }}
+    .page-main {{
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 3.5rem 1.5rem 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+    }}
+    .page-header {{
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }}
+    .page-title {{
+      margin: 0;
+      font-size: clamp(2rem, 3vw, 2.75rem);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #0f172a;
+    }}
+    .page-subtitle {{
+      margin: 0 auto;
+      max-width: 640px;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: #475569;
+    }}
+    .notice {{
+      max-width: 720px;
+      margin: -0.5rem auto 0;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: #64748b;
+      text-align: center;
+    }}
+    .item-grid {{
+      display: grid;
+      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }}
+    .empty-message {{
+      grid-column: 1 / -1;
+      text-align: center;
+      font-size: 1rem;
+      color: #94a3b8;
+      margin: 2rem 0;
+    }}
+    .item-card {{
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 1.25rem;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.1);
+      backdrop-filter: blur(6px);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }}
+    .item-card:hover {{
+      transform: translateY(-4px);
+      border-color: rgba(148, 163, 184, 0.55);
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.15);
+    }}
+    .item-card__header {{
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }}
+    .item-card__title {{
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #1e293b;
+    }}
+    .item-card__subtitle {{
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+    }}
+    .item-card__content {{
+      display: grid;
+      gap: 1.5rem;
+      grid-template-columns: minmax(0, 1fr);
+    }}
+    @media (min-width: 768px) {{
+      .item-card__content {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }}
+    }}
+    .card-column {{
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }}
+    .info-grid {{
+      display: grid;
+      gap: 0.65rem;
+      font-size: 0.95rem;
+      color: #475569;
+    }}
+    .info-row {{
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }}
+    .info-label {{
+      font-weight: 600;
+      color: #1f2937;
+    }}
+    .summary-list {{
+      list-style: none;
+      margin: 0;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      background: linear-gradient(135deg, rgba(248, 250, 252, 0.95), rgba(226, 232, 240, 0.7));
+      border: 1px solid rgba(203, 213, 225, 0.7);
+      border-radius: 1rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }}
+    .summary-item {{
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }}
+    .summary-key {{
+      font-weight: 600;
+      color: #1e293b;
+    }}
+    .summary-values {{
+      color: #475569;
+    }}
+    .summary-empty {{
+      margin: 0;
+      font-size: 0.95rem;
+      color: #94a3b8;
+    }}
+    .chart-container {{
+      background: linear-gradient(135deg, rgba(248, 250, 252, 0.85), rgba(226, 232, 240, 0.65));
+      border: 1px solid rgba(203, 213, 225, 0.8);
+      border-radius: 1rem;
+      padding: 1rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+      min-height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }}
+    .chart-canvas {{
+      width: 100%;
+      height: 260px;
+    }}
+    .chart-empty {{
+      margin: 0;
+      font-size: 0.9rem;
+      color: #94a3b8;
+      text-align: center;
+    }}
   </style>
 </head>
-<body class=\"bg-gradient-to-br from-slate-100 via-white to-slate-200 min-h-screen py-12\">
-  <main class=\"max-w-6xl mx-auto px-4 flex flex-col gap-10\">
-    <header class=\"text-center space-y-2\">
-      <h1 class=\"text-3xl md:text-4xl font-bold text-slate-900\">BrickLink Preis\u00fcbersicht</h1>
-      <p class=\"text-slate-600 max-w-2xl mx-auto\">Automatisch generierte HTML-Auswertung aller in Firestore gespeicherten Artikel.</p>
+<body>
+  <main class=\"page-main\">
+    <header class=\"page-header\">
+      <h1 class=\"page-title\">BrickLink Preis\u00fcbersicht</h1>
+      <p class=\"page-subtitle\">Automatisch generierte HTML-Auswertung aller in Firestore gespeicherten Artikel.</p>
     </header>
     {_render_documentation_notice()}
-    <div class=\"grid gap-6 sm:grid-cols-2 xl:grid-cols-3\">{sections_html}</div>
+    <div class=\"item-grid\">{sections_html}</div>
   </main>
   <script>
     document.addEventListener('DOMContentLoaded', () => {{
