@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import html
 import json
 import os
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -35,6 +39,15 @@ COLOR_PALETTE = [
 ]
 
 JsonObject = Dict[str, Any]
+
+try:
+    from bricklink_price import API_BASE_URL, _build_oauth1_header
+except ModuleNotFoundError:
+    API_BASE_URL = "https://api.bricklink.com/api/store/v1"
+
+
+_BRICKLINK_CREDENTIALS_CACHE: Tuple[str, str, str, str] | None = None
+_BRICKLINK_CREDENTIALS_CHECKED = False
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -73,6 +86,157 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Zieldatei f\u00fcr die erzeugte HTML \u00dcbersicht (Standard: export.html).",
     )
     return parser.parse_args(argv)
+
+
+def _get_bricklink_credentials() -> Tuple[str, str, str, str] | None:
+    """Return BrickLink API credentials from the environment if available."""
+
+    global _BRICKLINK_CREDENTIALS_CACHE, _BRICKLINK_CREDENTIALS_CHECKED
+
+    if _BRICKLINK_CREDENTIALS_CHECKED:
+        return _BRICKLINK_CREDENTIALS_CACHE
+
+    consumer_key = os.getenv("BRICKLINK_CONSUMER_KEY")
+    consumer_secret = os.getenv("BRICKLINK_CONSUMER_SECRET")
+    token_value = os.getenv("BRICKLINK_TOKEN_VALUE")
+    token_secret = os.getenv("BRICKLINK_TOKEN_SECRET")
+
+    missing = [
+        name
+        for name, value in [
+            ("BRICKLINK_CONSUMER_KEY", consumer_key),
+            ("BRICKLINK_CONSUMER_SECRET", consumer_secret),
+            ("BRICKLINK_TOKEN_VALUE", token_value),
+            ("BRICKLINK_TOKEN_SECRET", token_secret),
+        ]
+        if not value
+    ]
+
+    if missing:
+        print(
+            "Warnung: BrickLink API Zugangsdaten fehlen (" + ", ".join(missing) +
+            "). Bilder werden im Export ausgelassen.",
+        )
+        _BRICKLINK_CREDENTIALS_CACHE = None
+    else:
+        _BRICKLINK_CREDENTIALS_CACHE = (
+            consumer_key or "",
+            consumer_secret or "",
+            token_value or "",
+            token_secret or "",
+        )
+
+    _BRICKLINK_CREDENTIALS_CHECKED = True
+    return _BRICKLINK_CREDENTIALS_CACHE
+
+
+def _normalize_item_identifiers(
+    item_type: Any, item_no: Any
+) -> Tuple[str, str] | None:
+    """Return normalized BrickLink item identifiers or ``None`` if invalid."""
+
+    if not item_type or not item_no:
+        return None
+
+    normalized_type = str(item_type).strip().upper()
+    normalized_no = str(item_no).strip()
+
+    if not normalized_type or not normalized_no:
+        return None
+
+    if normalized_type == "SET" and "-" not in normalized_no:
+        normalized_no = f"{normalized_no}-1"
+
+    return normalized_type, normalized_no
+
+
+@functools.lru_cache(maxsize=256)
+def _request_bricklink_item_details(
+    normalized_type: str, normalized_no: str
+) -> Mapping[str, Any] | None:
+    """Fetch catalog information for an item from the BrickLink API."""
+
+    credentials = _get_bricklink_credentials()
+    if credentials is None:
+        return None
+
+    consumer_key, consumer_secret, token_value, token_secret = credentials
+
+    url = f"{API_BASE_URL}/items/{urllib.parse.quote(normalized_type)}/{urllib.parse.quote(normalized_no)}"
+    headers = {
+        "Authorization": _build_oauth1_header(
+            "GET",
+            url,
+            {},
+            consumer_key,
+            consumer_secret,
+            token_value,
+            token_secret,
+        )
+    }
+
+    request = urllib.request.Request(url, headers=headers, method="GET")
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            print(
+                "Warnung: BrickLink API Anfrage für"
+                f" {normalized_type} {normalized_no} schlug fehl (Status {exc.code})."
+            )
+        return None
+    except urllib.error.URLError as exc:
+        print(
+            "Warnung: BrickLink API konnte nicht erreicht werden:"
+            f" {exc.reason}. Bilder werden ausgelassen."
+        )
+        return None
+
+    try:
+        response_data = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        print(
+            "Warnung: Unerwartete Antwort der BrickLink API für"
+            f" {normalized_type} {normalized_no}."
+        )
+        return None
+
+    if not isinstance(response_data, Mapping):
+        return None
+
+    meta = response_data.get("meta")
+    if isinstance(meta, Mapping) and meta.get("code") not in (None, 200):
+        message = meta.get("message") or "Unbekannter Fehler"
+        print(
+            "Warnung: BrickLink API meldet Fehler für"
+            f" {normalized_type} {normalized_no}: {message}"
+        )
+        return None
+
+    data = response_data.get("data")
+    return data if isinstance(data, Mapping) else None
+
+
+def _resolve_bricklink_image_url(item: Mapping[str, Any]) -> str | None:
+    """Return the BrickLink image URL for an item if retrievable."""
+
+    normalized = _normalize_item_identifiers(
+        item.get("item_type") or item.get("type"),
+        item.get("item_no") or item.get("item_id") or item.get("id"),
+    )
+    if not normalized:
+        return None
+
+    details = _request_bricklink_item_details(*normalized)
+    if not details:
+        return None
+
+    image_url = details.get("image_url") or details.get("thumbnail_url")
+    if isinstance(image_url, str) and image_url.strip():
+        return image_url.strip()
+    return None
 
 
 def _validate_project_id(value: str, *, hint: str | None = None) -> str:
@@ -286,6 +450,7 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
     item_type = item.get("item_type") or "Unbekannt"
     last_updated = item.get("last_updated") or item.get("updated_at")
     results = item.get("results") if isinstance(item.get("results"), Mapping) else {}
+    image_url = _resolve_bricklink_image_url(item)
 
     labels, datasets = _build_chart_series(results)
     chart_config: Dict[str, Any] | None = None
@@ -348,6 +513,18 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
         "<div class=\"info-grid\">" + "".join(info_rows) + "</div>"
     )
 
+    image_html = ""
+    if image_url:
+        alt_parts = [str(item_no or "").strip()]
+        if item_name:
+            alt_parts.append(str(item_name))
+        alt_text = " - ".join(part for part in alt_parts if part)
+        image_html = (
+            "<div class=\"item-card__media\">"
+            f"<img src=\"{_escape(image_url)}\" alt=\"{_escape(alt_text or 'Artikelbild')}\" "
+            "class=\"item-card__image\" loading=\"lazy\"></div>"
+        )
+
     section_html = (
         "<section class=\"item-card\">"
         "<div class=\"item-card__header\">"
@@ -356,7 +533,7 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
         f"<span class=\"item-card__subtitle\">{_escape(item_type)}</span>"
         "</div>"
         "<div class=\"item-card__content\">"
-        f"<div class=\"card-column\">{info_html}{summary_html}</div>"
+        f"<div class=\"card-column\">{image_html}{info_html}{summary_html}</div>"
         f"<div class=\"chart-container\">{chart_placeholder}</div>"
         "</div>"
         "</section>"
@@ -514,6 +691,22 @@ def render_html(items: Sequence[Mapping[str, Any]]) -> str:
       display: flex;
       flex-direction: column;
       gap: 1.25rem;
+    }}
+    .item-card__media {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem;
+      background: linear-gradient(135deg, rgba(248, 250, 252, 0.9), rgba(226, 232, 240, 0.6));
+      border: 1px solid rgba(203, 213, 225, 0.8);
+      border-radius: 0.9rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      min-height: 140px;
+    }}
+    .item-card__image {{
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
     }}
     .info-grid {{
       display: grid;
