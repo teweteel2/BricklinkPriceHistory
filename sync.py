@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
 try:
+    from google.api_core import exceptions as google_api_exceptions
     from google.cloud import firestore
     from google.auth import exceptions as google_auth_exceptions
     from google.oauth2 import service_account
@@ -98,7 +99,14 @@ def sync_file(
     document_id = _sanitize_document_id(str(item_type), str(item_no))
     doc_ref = db.collection(collection).document(document_id)
 
-    existing_snapshot = doc_ref.get()
+    try:
+        existing_snapshot = doc_ref.get()
+    except google_api_exceptions.PermissionDenied as exc:
+        raise SystemExit(
+            "Kein Zugriff auf das Firestore-Projekt. Prüfe, ob der Service-Account "
+            "für das Projekt berechtigt ist und ob die Firestore API aktiviert ist."
+        ) from exc
+
     existing_data = existing_snapshot.to_dict() if existing_snapshot.exists else {}
     existing_results: Dict[str, JsonObject] = dict(existing_data.get("results", {}))
 
@@ -119,7 +127,13 @@ def sync_file(
     payload_to_store["results"] = merged_results
     payload_to_store["source_file"] = str(path.resolve())
 
-    doc_ref.set(payload_to_store, merge=True)
+    try:
+        doc_ref.set(payload_to_store, merge=True)
+    except google_api_exceptions.PermissionDenied as exc:
+        raise SystemExit(
+            "Schreibzugriff auf Firestore verweigert. Stelle sicher, dass der Service-Account "
+            "mindestens die Rolle 'Datastore User' besitzt."
+        ) from exc
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
