@@ -47,6 +47,22 @@ python sync.py --collection bricklink_price_history --project mein-gcp-projekt
 Ohne Angabe eines Verzeichnisses werden die JSON-Dateien im aktuellen Ordner
 verarbeitet.
 
+## HTML-Export aus Firestore
+
+Das Skript `export.py` liest alle Dokumente aus einer Firestore Collection und
+erzeugt eine HTML-Datei mit einer Tailwind-Oberfläche. Zu jedem Artikel wird
+eine Karte mit Stammdaten, den wichtigsten Kennzahlen aus dem Preis-Guide sowie
+ein Diagramm mit der monatlichen Preisentwicklung erstellt. Die erzeugte Datei
+kann lokal im Browser geöffnet werden.
+
+```bash
+python export.py --collection bricklink_price_history --output overview.html
+```
+
+Die Optionen `--project` und `--credentials` funktionieren analog zu
+`sync.py`, falls ein bestimmtes GCP-Projekt oder eine Service-Account-Datei
+verwendet werden soll.
+
 ### Anmeldedaten
 
 Standardmäßig liest `sync.py` die Umgebungsvariable
