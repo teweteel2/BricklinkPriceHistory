@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
 try:
     from google.cloud import firestore
+    from google.auth import exceptions as google_auth_exceptions
+    from google.oauth2 import service_account
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise SystemExit(
         "Das Paket 'google-cloud-firestore' ist nicht installiert. "
@@ -141,6 +144,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optionaler GCP Projektname für den Firestore Client.",
     )
     parser.add_argument(
+        "--credentials",
+        type=Path,
+        help=(
+            "Pfad zur Service-Account JSON Datei. Wenn nicht angegeben, wird "
+            "GOOGLE_APPLICATION_CREDENTIALS oder die Google Standard-Anmeldung verwendet."
+        ),
+    )
+    parser.add_argument(
         "directory",
         nargs="?",
         default=Path.cwd(),
@@ -148,6 +159,45 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Verzeichnis mit den JSON Dateien (Standard: aktuelles Arbeitsverzeichnis).",
     )
     return parser.parse_args(argv)
+
+
+def _build_firestore_client(
+    *, project: str | None, credentials_path: Path | None
+) -> firestore.Client:
+    """Create a Firestore client with additional credential validation."""
+
+    if credentials_path is None:
+        env_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if env_path:
+            credentials_path = Path(env_path)
+
+    if credentials_path is not None:
+        expanded = credentials_path.expanduser().resolve()
+        if not expanded.exists():
+            raise SystemExit(
+                "Die angegebene Service-Account Datei wurde nicht gefunden:\n"
+                f"  {expanded}\n"
+                "Prüfe den Pfad oder verwende --credentials, um den korrekten Pfad zu übergeben."
+            )
+        if not expanded.is_file():
+            raise SystemExit(
+                "Der angegebene Service-Account Pfad verweist nicht auf eine Datei:\n"
+                f"  {expanded}"
+            )
+
+        credentials = service_account.Credentials.from_service_account_file(
+            str(expanded)
+        )
+        return firestore.Client(project=project, credentials=credentials)
+
+    try:
+        return firestore.Client(project=project)
+    except google_auth_exceptions.DefaultCredentialsError as exc:
+        raise SystemExit(
+            "Es konnten keine Google-Anmeldedaten gefunden werden. Setze entweder "
+            "GOOGLE_APPLICATION_CREDENTIALS auf die JSON-Datei eines Service Accounts "
+            "oder verwende den Schalter --credentials."
+        ) from exc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -164,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Keine JSON Dateien gefunden – nichts zu synchronisieren.")
         return 0
 
-    db = firestore.Client(project=args.project)
+    db = _build_firestore_client(project=args.project, credentials_path=args.credentials)
 
     for path, data in json_files:
         print(f"Synchronisiere {path.name}...")

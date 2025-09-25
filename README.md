@@ -46,3 +46,11 @@ python sync.py --collection bricklink_price_history --project mein-gcp-projekt
 
 Ohne Angabe eines Verzeichnisses werden die JSON-Dateien im aktuellen Ordner
 verarbeitet.
+
+### Anmeldedaten
+
+Standardmäßig liest `sync.py` die Umgebungsvariable
+`GOOGLE_APPLICATION_CREDENTIALS`. Mit dem Parameter `--credentials` kann der
+Pfad zur Service-Account-Datei explizit gesetzt werden. In beiden Fällen prüft
+das Skript vor dem Start, ob die Datei existiert, und bricht ansonsten mit
+einer verständlichen Fehlermeldung ab.
