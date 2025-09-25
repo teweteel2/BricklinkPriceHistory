@@ -24,7 +24,13 @@ import os
 import sys
 from typing import Any, Dict
 
-import requests
+try:
+    import requests
+except ModuleNotFoundError as exc:  # pragma: no cover - defensive import guard
+    raise SystemExit(
+        "The 'requests' package is required to run this script. "
+        "Install it with 'pip install requests'."
+    ) from exc
 
 try:
     from requests_oauthlib import OAuth1
