@@ -235,7 +235,10 @@ def _resolve_bricklink_image_url(item: Mapping[str, Any]) -> str | None:
 
     image_url = details.get("image_url") or details.get("thumbnail_url")
     if isinstance(image_url, str) and image_url.strip():
-        return image_url.strip()
+        sanitized = image_url.strip()
+        if sanitized.startswith("//"):
+            sanitized = "https:" + sanitized
+        return sanitized
     return None
 
 
