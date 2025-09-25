@@ -451,8 +451,9 @@ def render_html(items: Sequence[Mapping[str, Any]]) -> str:
     }}
     .item-grid {{
       display: grid;
-      gap: 1.5rem;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      justify-content: center;
     }}
     .empty-message {{
       grid-column: 1 / -1;
@@ -498,8 +499,9 @@ def render_html(items: Sequence[Mapping[str, Any]]) -> str:
     }}
     .item-card__content {{
       display: grid;
-      gap: 1.5rem;
+      gap: 1.75rem;
       grid-template-columns: minmax(0, 1fr);
+      align-items: start;
     }}
     @media (min-width: 768px) {{
       .item-card__content {{
@@ -559,16 +561,17 @@ def render_html(items: Sequence[Mapping[str, Any]]) -> str:
       background: linear-gradient(135deg, rgba(248, 250, 252, 0.85), rgba(226, 232, 240, 0.65));
       border: 1px solid rgba(203, 213, 225, 0.8);
       border-radius: 1rem;
-      padding: 1rem;
+      padding: 1.25rem;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
-      min-height: 220px;
+      min-height: 260px;
       display: flex;
       align-items: center;
       justify-content: center;
+      grid-column: 1 / -1;
     }}
     .chart-canvas {{
       width: 100%;
-      height: 260px;
+      height: 320px;
     }}
     .chart-empty {{
       margin: 0;
