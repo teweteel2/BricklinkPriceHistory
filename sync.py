@@ -117,7 +117,7 @@ def sync_file(
     payload_to_store: JsonObject = dict(existing_data)
     payload_to_store.update(data)
     payload_to_store["results"] = merged_results
-    payload_to_store["source_file"] = path.name
+    payload_to_store["source_file"] = str(path.resolve())
 
     doc_ref.set(payload_to_store, merge=True)
 
@@ -169,7 +169,9 @@ def _build_firestore_client(
     if credentials_path is None:
         env_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         if env_path:
-            credentials_path = Path(env_path)
+            sanitized = env_path.strip().strip('"\'')
+            if sanitized:
+                credentials_path = Path(sanitized)
 
     if credentials_path is not None:
         expanded = credentials_path.expanduser().resolve()
