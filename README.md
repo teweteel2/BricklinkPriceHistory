@@ -10,9 +10,13 @@ und die erzeugten JSON-Dateien in eine Google Firestore Datenbank zu übertragen
 * Service-Account Anmeldedaten, verfügbar über die Umgebungsvariable
   `GOOGLE_APPLICATION_CREDENTIALS`
 * Installierte Abhängigkeiten (am besten mit derselben Python-Version, die die
-  Skripte ausführt):
+  Skripte ausführt). In durch den Paketmanager verwalteten Python-Installationen
+  blockiert `pip` unter Umständen direkte Installationen (PEP 668). Lege in
+  diesem Fall ein virtuelles Umfeld an und installiere die Pakete dort:
   ```bash
-  python3 -m pip install -r requirements.txt
+  python3 -m venv .venv
+  source .venv/bin/activate
+  python -m pip install -r requirements.txt
   ```
 
 ## Bricklink Preisabfrage

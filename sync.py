@@ -11,7 +11,9 @@ try:
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise SystemExit(
         "Das Paket 'google-cloud-firestore' ist nicht installiert. "
-        "Bitte führe 'python3 -m pip install -r requirements.txt' aus."
+        "Installiere die Abhängigkeiten z. B. mit einem virtuellen Umfeld:\n"
+        "    python3 -m venv .venv && source .venv/bin/activate\n"
+        "    python -m pip install -r requirements.txt"
     ) from exc
 
 
