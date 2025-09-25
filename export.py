@@ -245,7 +245,7 @@ def _build_chart_series(results: Mapping[str, Any]) -> Tuple[List[str], List[Dic
     return all_months, datasets
 
 
-def _format_result_summary(key: str, payload: Mapping[str, Any]) -> str:
+def _format_result_summary(key: str, payload: Mapping[str, Any]) -> str | None:
     summary_fields = []
     avg_price = payload.get("avg_price") or payload.get("avg_sale_price")
     currency = payload.get("currency_code")
@@ -270,7 +270,7 @@ def _format_result_summary(key: str, payload: Mapping[str, Any]) -> str:
             summary_fields.append(f"Durchschnitt (Menge): {qty_price:.2f}")
 
     if not summary_fields:
-        summary_fields.append("Keine Kennzahlen verf\u00fcgbar")
+        return None
 
     return (
         "<li class=\"summary-item\">"
@@ -305,11 +305,13 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
 
     summary_html = ""
     if results:
-        summary_items = [
-            _format_result_summary(key, payload)
-            for key, payload in sorted(results.items())
-            if isinstance(payload, Mapping)
-        ]
+        summary_items = []
+        for key, payload in sorted(results.items()):
+            if not isinstance(payload, Mapping):
+                continue
+            summary_item = _format_result_summary(key, payload)
+            if summary_item:
+                summary_items.append(summary_item)
         if summary_items:
             summary_html = (
                 "<ul class=\"summary-list\">"
