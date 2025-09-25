@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
@@ -22,6 +23,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
 
 
 DEFAULT_COLLECTION = "bricklink_price_history"
+_PROJECT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$")
 
 
 JsonObject = Dict[str, Any]
@@ -180,6 +182,18 @@ def _build_firestore_client(
 ) -> firestore.Client:
     """Create a Firestore client with additional credential validation."""
 
+    def _validate_project_id(value: str, *, hint: str | None = None) -> str:
+        candidate = value.strip()
+        if not candidate:
+            raise SystemExit("Die angegebene Projekt-ID ist leer.")
+        if not _PROJECT_ID_PATTERN.match(candidate):
+            extra = f" Vielleicht meinst du '{hint}'." if hint else ""
+            raise SystemExit(
+                "Ungültige Firestore Projekt-ID. Verwende die Projekt-ID, nicht den Anzeigenamen."
+                + extra
+            )
+        return candidate
+
     if credentials_path is None:
         env_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         if env_path:
@@ -187,6 +201,7 @@ def _build_firestore_client(
             if sanitized:
                 credentials_path = Path(sanitized)
 
+    credentials_project: str | None = None
     if credentials_path is not None:
         expanded = credentials_path.expanduser().resolve()
         if not expanded.exists():
@@ -201,13 +216,29 @@ def _build_firestore_client(
                 f"  {expanded}"
             )
 
+        with expanded.open("r", encoding="utf-8") as credentials_file:
+            credentials_info = json.load(credentials_file)
+        credentials_project = credentials_info.get("project_id")
+        if credentials_project:
+            credentials_project = _validate_project_id(credentials_project)
+
         credentials = service_account.Credentials.from_service_account_file(
             str(expanded)
         )
-        return firestore.Client(project=project, credentials=credentials)
+        normalized_project = (
+            _validate_project_id(project, hint=credentials_project)
+            if project
+            else credentials_project
+        )
+        if credentials_project and normalized_project and normalized_project != credentials_project:
+            print(
+                "Hinweis: Die angegebene Projekt-ID weicht von der project_id der Service-Account-Datei ab."
+            )
+        return firestore.Client(project=normalized_project, credentials=credentials)
 
+    normalized_project = _validate_project_id(project) if project else None
     try:
-        return firestore.Client(project=project)
+        return firestore.Client(project=normalized_project)
     except google_auth_exceptions.DefaultCredentialsError as exc:
         raise SystemExit(
             "Es konnten keine Google-Anmeldedaten gefunden werden. Setze entweder "

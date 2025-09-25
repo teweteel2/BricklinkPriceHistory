@@ -61,5 +61,7 @@ stimmen in der Regel Projekt oder Berechtigungen nicht. Stelle sicher, dass:
 * die Firestore-API für das angegebene GCP-Projekt aktiviert ist,
 * der Service-Account mindestens die Rolle **Cloud Datastore User** oder eine
   weitergehende Firestore-Rolle besitzt,
-* `--project` (oder die Projektangabe in der JSON-Datei) auf dasselbe Projekt
-  zeigt, in dem sich die Datenbank befindet.
+* `--project` (oder die Projektangabe in der JSON-Datei) auf dieselbe
+  Projekt-ID zeigt, in dem sich die Datenbank befindet. Verwende dabei die
+  tatsächliche Projekt-ID (z. B. `bl-test-fd741`) und nicht den Anzeigenamen,
+  da Großbuchstaben oder Sonderzeichen zu `PermissionDenied` führen.
