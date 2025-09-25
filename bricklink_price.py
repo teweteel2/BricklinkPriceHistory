@@ -190,7 +190,25 @@ def fetch_average_price(args: argparse.Namespace) -> float:
         with urllib.request.urlopen(request, timeout=30) as response:
             payload = response.read()
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"BrickLink API request failed with status {exc.code}.") from exc
+        error_message = f"BrickLink API request failed with status {exc.code}."
+        try:
+            error_body = exc.read()
+        except Exception:  # pragma: no cover - best effort error reporting
+            error_body = b""
+
+        if error_body:
+            try:
+                error_payload = json.loads(error_body.decode("utf-8"))
+                meta = error_payload.get("meta") if isinstance(error_payload, dict) else None
+                meta_message = meta.get("message") if isinstance(meta, dict) else None
+                if meta_message:
+                    error_message = f"{error_message} Message: {meta_message}."
+            except (ValueError, UnicodeDecodeError):
+                decoded_body = error_body.decode("utf-8", errors="replace").strip()
+                if decoded_body:
+                    error_message = f"{error_message} Response: {decoded_body}."
+
+        raise RuntimeError(error_message) from exc
     except urllib.error.URLError as exc:
         raise RuntimeError("Unable to reach the BrickLink API.") from exc
 
