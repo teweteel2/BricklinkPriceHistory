@@ -11,7 +11,7 @@ und die erzeugten JSON-Dateien in eine Google Firestore Datenbank zu übertragen
   `GOOGLE_APPLICATION_CREDENTIALS`
 * Installierte Abhängigkeiten:
   ```bash
-  pip install google-cloud-firestore
+  pip install -r requirements.txt
   ```
 
 ## Bricklink Preisabfrage
