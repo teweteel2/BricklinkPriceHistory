@@ -34,7 +34,9 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict
+from collections import defaultdict, OrderedDict
+from datetime import datetime
+from typing import Any, Dict, Iterable, Mapping
 
 
 API_BASE_URL = "https://api.bricklink.com/api/store/v1"
@@ -124,14 +126,14 @@ def _build_oauth1_header(
     )
     return f"OAuth {header_params}"
 
-def fetch_average_price(
+def fetch_price_data(
     item_type: str,
     item_no: str,
     guide_type: str,
     condition: str,
     currency_code: str | None,
-) -> float:
-    """Call the BrickLink API and return the requested average price.
+) -> Mapping[str, Any]:
+    """Return the price data payload for the given item and configuration.
 
     Raises ``RuntimeError`` if the API response does not contain the expected data.
     """
@@ -223,9 +225,71 @@ def fetch_average_price(
 
     try:
         price_data = data["data"]
-        return float(price_data.get("avg_price") or price_data["qty_avg_price"])
+        if not isinstance(price_data, dict):
+            raise TypeError
+        return price_data
     except (KeyError, TypeError, ValueError) as exc:  # pragma: no cover - defensive
         raise RuntimeError("Unexpected API response format.") from exc
+
+
+def _extract_average_price(price_data: Mapping[str, Any]) -> float:
+    """Return the numeric average price from the BrickLink payload."""
+
+    try:
+        avg_price = price_data.get("avg_price") or price_data["qty_avg_price"]
+    except KeyError as exc:  # pragma: no cover - defensive
+        raise RuntimeError("Price data missing average price information.") from exc
+
+    try:
+        return float(avg_price)
+    except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
+        raise RuntimeError("Average price value is not numeric.") from exc
+
+
+def _compute_monthly_averages(price_detail: Iterable[Mapping[str, Any]]) -> "OrderedDict[str, float]":
+    """Compute arithmetic mean of the unit prices grouped by month."""
+
+    monthly_totals: Dict[str, list[float]] = defaultdict(list)
+
+    for entry in price_detail:
+        if not isinstance(entry, Mapping):
+            continue
+
+        date_str = entry.get("date")
+        unit_price = entry.get("unit_price")
+        if not date_str or unit_price in (None, ""):
+            continue
+
+        date_text = str(date_str)
+        if date_text.endswith("Z"):
+            date_text = date_text[:-1] + "+00:00"
+
+        try:
+            parsed_date = datetime.fromisoformat(date_text)
+        except ValueError:
+            continue
+
+        try:
+            unit_price_float = float(unit_price)
+        except (TypeError, ValueError):
+            continue
+
+        month_key = parsed_date.strftime("%Y-%m")
+        monthly_totals[month_key].append(unit_price_float)
+
+    ordered_months = OrderedDict()
+    for month in sorted(monthly_totals):
+        prices = monthly_totals[month]
+        if prices:
+            ordered_months[month] = sum(prices) / len(prices)
+
+    return ordered_months
+
+
+def _sanitize_filename_part(value: str) -> str:
+    """Return a filesystem-friendly representation of the given identifier."""
+
+    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in value)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -238,16 +302,24 @@ def main(argv: list[str] | None = None) -> int:
         ("sold", "U"),
     ]
 
-    prices: Dict[tuple[str, str], float] = {}
+    prices: Dict[tuple[str, str], Dict[str, Any]] = {}
     try:
         for guide_type, condition in combinations:
-            prices[(guide_type, condition)] = fetch_average_price(
+            price_data = fetch_price_data(
                 args.item_type,
                 args.item_no,
                 guide_type,
                 condition,
                 args.currency_code,
             )
+            average_price = _extract_average_price(price_data)
+            price_detail = price_data.get("price_detail") or []
+            monthly_averages = _compute_monthly_averages(price_detail)
+            prices[(guide_type, condition)] = {
+                "average_price": average_price,
+                "price_detail": price_detail,
+                "monthly_averages": monthly_averages,
+            }
     except Exception as exc:  # pragma: no cover - CLI error handling
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -256,8 +328,42 @@ def main(argv: list[str] | None = None) -> int:
     for guide_type in ("stock", "sold"):
         print(f"Average {guide_type} prices for {args.item_type} {args.item_no}:")
         for condition in ("N", "U"):
-            price = prices[(guide_type, condition)]
+            data = prices[(guide_type, condition)]
+            price = data["average_price"]
             print(f"  {condition_label[condition]}: {price:.2f}")
+
+            monthly_averages = data["monthly_averages"]
+            if monthly_averages:
+                print("    Monthly averages:")
+                for month, month_avg in monthly_averages.items():
+                    print(f"      {month}: {month_avg:.2f}")
+            else:
+                print("    Monthly averages: No price detail available.")
+
+    sanitized_type = _sanitize_filename_part(args.item_type.upper())
+    sanitized_no = _sanitize_filename_part(args.item_no)
+    filename = f"{sanitized_type}_{sanitized_no}.json"
+
+    output = {
+        "item_type": args.item_type,
+        "item_no": args.item_no,
+        "currency_code": args.currency_code,
+        "results": {
+            f"{guide_type}_{condition}": {
+                "average_price": data["average_price"],
+                "monthly_averages": data["monthly_averages"],
+                "price_detail": data["price_detail"],
+            }
+            for (guide_type, condition), data in prices.items()
+        },
+    }
+
+    try:
+        with open(filename, "w", encoding="utf-8") as file:
+            json.dump(output, file, indent=2, ensure_ascii=False)
+    except OSError as exc:  # pragma: no cover - filesystem errors
+        print(f"Error writing {filename}: {exc}", file=sys.stderr)
+        return 1
 
     return 0
 
