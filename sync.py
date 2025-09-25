@@ -6,7 +6,13 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
-from google.cloud import firestore
+try:
+    from google.cloud import firestore
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise SystemExit(
+        "Das Paket 'google-cloud-firestore' ist nicht installiert. "
+        "Bitte führe 'python3 -m pip install -r requirements.txt' aus."
+    ) from exc
 
 
 DEFAULT_COLLECTION = "bricklink_price_history"
@@ -89,26 +95,24 @@ def sync_file(
 
     existing_snapshot = doc_ref.get()
     existing_data = existing_snapshot.to_dict() if existing_snapshot.exists else {}
-    existing_results = existing_data.get("results", {}) if existing_data else {}
+    existing_results: Dict[str, JsonObject] = dict(existing_data.get("results", {}))
 
-    results: Dict[str, JsonObject] = {}
-    for key, payload in data.get("results", {}).items():
-        payload = dict(payload)
+    merged_results: Dict[str, JsonObject] = dict(existing_results)
+    new_results = data.get("results", {})
+    for key, payload in new_results.items():
+        new_payload = dict(payload)
         if key.startswith("sold"):
             merged_detail = _merge_sold_price_details(
                 existing_results.get(key, {}).get("price_detail"),
-                payload.get("price_detail"),
+                new_payload.get("price_detail"),
             )
-            payload["price_detail"] = merged_detail
-        results[key] = payload
+            new_payload["price_detail"] = merged_detail
+        merged_results[key] = new_payload
 
-    payload_to_store: JsonObject = {
-        "item_type": item_type,
-        "item_no": item_no,
-        "currency_code": data.get("currency_code"),
-        "results": results,
-        "source_file": path.name,
-    }
+    payload_to_store: JsonObject = dict(existing_data)
+    payload_to_store.update(data)
+    payload_to_store["results"] = merged_results
+    payload_to_store["source_file"] = path.name
 
     doc_ref.set(payload_to_store, merge=True)
 

@@ -9,9 +9,10 @@ und die erzeugten JSON-Dateien in eine Google Firestore Datenbank zu übertragen
 * Ein Google Cloud Projekt mit aktiviertem Firestore
 * Service-Account Anmeldedaten, verfügbar über die Umgebungsvariable
   `GOOGLE_APPLICATION_CREDENTIALS`
-* Installierte Abhängigkeiten:
+* Installierte Abhängigkeiten (am besten mit derselben Python-Version, die die
+  Skripte ausführt):
   ```bash
-  pip install -r requirements.txt
+  python3 -m pip install -r requirements.txt
   ```
 
 ## Bricklink Preisabfrage
