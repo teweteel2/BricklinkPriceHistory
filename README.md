@@ -54,3 +54,12 @@ Standardmäßig liest `sync.py` die Umgebungsvariable
 Pfad zur Service-Account-Datei explizit gesetzt werden. In beiden Fällen prüft
 das Skript vor dem Start, ob die Datei existiert, und bricht ansonsten mit
 einer verständlichen Fehlermeldung ab.
+
+Sollte beim Zugriff auf Firestore die Meldung `PermissionDenied` erscheinen,
+stimmen in der Regel Projekt oder Berechtigungen nicht. Stelle sicher, dass:
+
+* die Firestore-API für das angegebene GCP-Projekt aktiviert ist,
+* der Service-Account mindestens die Rolle **Cloud Datastore User** oder eine
+  weitergehende Firestore-Rolle besitzt,
+* `--project` (oder die Projektangabe in der JSON-Datei) auf dasselbe Projekt
+  zeigt, in dem sich die Datenbank befindet.
