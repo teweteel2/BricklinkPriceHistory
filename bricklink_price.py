@@ -12,6 +12,9 @@ Example usage:
 
     python bricklink_price.py SET 75257
 
+For ``SET`` items the script automatically appends the ``-1`` variant suffix when
+it is omitted, matching BrickLink's catalog identifiers.
+
 By default the script requests the average *sold* price, but this can be changed
 with the ``--guide-type`` option. See ``python bricklink_price.py --help`` for
 additional options.
@@ -162,7 +165,12 @@ def fetch_average_price(args: argparse.Namespace) -> float:
             "Missing BrickLink API credentials: " + ", ".join(missing)
         )
 
-    url = f"{API_BASE_URL}/items/{args.item_type}/{args.item_no}/price"
+    item_type = args.item_type.upper()
+    item_no = args.item_no
+    if item_type == "SET" and "-" not in item_no:
+        item_no = f"{item_no}-1"
+
+    url = f"{API_BASE_URL}/items/{item_type}/{item_no}/price"
     params: Dict[str, Any] = {
         "guide_type": args.guide_type,
         "new_or_used": args.new_or_used,
