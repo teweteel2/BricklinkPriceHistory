@@ -169,7 +169,9 @@ def _build_firestore_client(
     if credentials_path is None:
         env_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         if env_path:
-            credentials_path = Path(env_path)
+            sanitized = env_path.strip().strip('"\'')
+            if sanitized:
+                credentials_path = Path(sanitized)
 
     if credentials_path is not None:
         expanded = credentials_path.expanduser().resolve()
