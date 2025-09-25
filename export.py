@@ -298,7 +298,9 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
             "labels": labels,
             "datasets": datasets,
         }
-        chart_placeholder = f"<canvas id=\"{element_id}\" class=\"w-full h-64\"></canvas>"
+        chart_placeholder = (
+            f"<canvas id=\"{element_id}\" class=\"w-full h-64 rounded-md bg-white\"></canvas>"
+        )
 
     summary_html = ""
     if results:
@@ -310,7 +312,7 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
         if summary_items:
             summary_html = (
                 "<ul class=\"text-sm divide-y divide-slate-100 border border-slate-200 "
-                "rounded-md bg-slate-50\">"
+                "rounded-lg bg-slate-50/70 backdrop-blur-sm\">"
                 + "".join(summary_items)
                 + "</ul>"
             )
@@ -337,8 +339,8 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
     )
 
     section_html = (
-        "<section class=\"bg-white border border-slate-200 rounded-lg shadow-sm p-6 "
-        "space-y-4\">"
+        "<section class=\"bg-white/90 border border-slate-200/70 rounded-2xl shadow-lg p-6 "
+        "flex flex-col gap-6 transition-all duration-200 hover:shadow-xl hover:border-slate-300\">"
         f"<div class=\"flex flex-col gap-1\">"
         f"<h2 class=\"text-xl font-semibold text-slate-800\">{_escape(item_no)}"
         f"{f' - {_escape(item_name)}' if item_name else ''}</h2>"
@@ -346,7 +348,7 @@ def _render_item_section(item: Mapping[str, Any], index: int) -> Tuple[str, Dict
         "</div>"
         "<div class=\"grid gap-6 md:grid-cols-2\">"
         f"<div class=\"space-y-4\">{info_html}{summary_html}</div>"
-        f"<div class=\"bg-slate-50 border border-slate-200 rounded-md p-4\">{chart_placeholder}</div>"
+        f"<div class=\"bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-inner\">{chart_placeholder}</div>"
         "</div>"
         "</section>"
     )
@@ -394,14 +396,14 @@ def render_html(items: Sequence[Mapping[str, Any]]) -> str:
     body {{ font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
   </style>
 </head>
-<body class=\"bg-slate-100 min-h-screen py-10\">
-  <main class=\"max-w-6xl mx-auto px-4 space-y-6\">
+<body class=\"bg-gradient-to-br from-slate-100 via-white to-slate-200 min-h-screen py-12\">
+  <main class=\"max-w-6xl mx-auto px-4 flex flex-col gap-10\">
     <header class=\"text-center space-y-2\">
-      <h1 class=\"text-3xl font-bold text-slate-900\">BrickLink Preis\u00fcbersicht</h1>
-      <p class=\"text-slate-600\">Automatisch generierte HTML-Auswertung aller in Firestore gespeicherten Artikel.</p>
+      <h1 class=\"text-3xl md:text-4xl font-bold text-slate-900\">BrickLink Preis\u00fcbersicht</h1>
+      <p class=\"text-slate-600 max-w-2xl mx-auto\">Automatisch generierte HTML-Auswertung aller in Firestore gespeicherten Artikel.</p>
     </header>
     {_render_documentation_notice()}
-    <div class=\"space-y-6\">{sections_html}</div>
+    <div class=\"grid gap-6 sm:grid-cols-2 xl:grid-cols-3\">{sections_html}</div>
   </main>
   <script>
     document.addEventListener('DOMContentLoaded', () => {{
