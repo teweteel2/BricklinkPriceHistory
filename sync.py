@@ -117,7 +117,7 @@ def sync_file(
     payload_to_store: JsonObject = dict(existing_data)
     payload_to_store.update(data)
     payload_to_store["results"] = merged_results
-    payload_to_store["source_file"] = path.name
+    payload_to_store["source_file"] = str(path.resolve())
 
     doc_ref.set(payload_to_store, merge=True)
 
