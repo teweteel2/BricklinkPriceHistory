@@ -246,7 +246,10 @@ def _extract_average_price(price_data: Mapping[str, Any]) -> float:
         raise RuntimeError("Average price value is not numeric.") from exc
 
 
-def _compute_monthly_averages(price_detail: Iterable[Mapping[str, Any]]) -> "OrderedDict[str, float]":
+def _compute_monthly_averages(
+    price_detail: Iterable[Mapping[str, Any]],
+    date_field: str = "date",
+) -> "OrderedDict[str, float]":
     """Compute arithmetic mean of the unit prices grouped by month."""
 
     monthly_totals: Dict[str, list[float]] = defaultdict(list)
@@ -255,7 +258,7 @@ def _compute_monthly_averages(price_detail: Iterable[Mapping[str, Any]]) -> "Ord
         if not isinstance(entry, Mapping):
             continue
 
-        date_str = entry.get("date")
+        date_str = entry.get(date_field)
         unit_price = entry.get("unit_price")
         if not date_str or unit_price in (None, ""):
             continue
@@ -314,7 +317,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             average_price = _extract_average_price(price_data)
             price_detail = price_data.get("price_detail") or []
-            monthly_averages = _compute_monthly_averages(price_detail)
+            if guide_type == "sold":
+                monthly_averages = _compute_monthly_averages(
+                    price_detail, date_field="date_ordered"
+                )
+            else:
+                monthly_averages = OrderedDict()
             prices[(guide_type, condition)] = {
                 "average_price": average_price,
                 "price_detail": price_detail,
@@ -332,13 +340,14 @@ def main(argv: list[str] | None = None) -> int:
             price = data["average_price"]
             print(f"  {condition_label[condition]}: {price:.2f}")
 
-            monthly_averages = data["monthly_averages"]
-            if monthly_averages:
-                print("    Monthly averages:")
-                for month, month_avg in monthly_averages.items():
-                    print(f"      {month}: {month_avg:.2f}")
-            else:
-                print("    Monthly averages: No price detail available.")
+            if guide_type == "sold":
+                monthly_averages = data["monthly_averages"]
+                if monthly_averages:
+                    print("    Monthly averages:")
+                    for month, month_avg in monthly_averages.items():
+                        print(f"      {month}: {month_avg:.2f}")
+                else:
+                    print("    Monthly averages: No sold price detail available.")
 
     sanitized_type = _sanitize_filename_part(args.item_type.upper())
     sanitized_no = _sanitize_filename_part(args.item_no)
